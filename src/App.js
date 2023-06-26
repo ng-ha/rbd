@@ -3,11 +3,37 @@ import { DragDropContext } from "react-beautiful-dnd";
 import { styled } from "styled-components";
 import Column from "./column";
 import initialData from "./initial-data";
+import Droppable from "./StrictModeDroppable";
 
 const Container = styled.div`
     display: flex;
 `;
-
+class InnerList extends React.PureComponent {
+    // shouldComponentUpdate(nextProps) {
+    //     if (
+    //         nextProps.column === this.props.column &&
+    //         nextProps.taskMap === this.props.taskMap &&
+    //         nextProps.index === this.props.index &&
+    //         nextProps.isDropDisabled === this.props.isDropDisabled
+    //     ) {
+    //         return false;
+    //     }
+    //     return true;
+    // }
+    render() {
+        const { column, taskMap, index, isDropDisabled } = this.props;
+        const tasks = column.taskIds.map((taskId) => taskMap[taskId]);
+        return (
+            <Column
+                key={column.id}
+                column={column}
+                tasks={tasks}
+                isDropDisabled={isDropDisabled}
+                index={index}
+            />
+        );
+    }
+}
 export default class App extends React.Component {
     state = initialData;
 
@@ -39,7 +65,7 @@ export default class App extends React.Component {
 
         this.setState({ homeIndex: null });
 
-        const { destination, source, draggableId } = result;
+        const { destination, source, draggableId, type } = result;
 
         if (!destination) return;
 
@@ -47,6 +73,17 @@ export default class App extends React.Component {
             destination.droppableId === source.droppableId &&
             destination.index === source.index
         ) {
+            return;
+        }
+
+        if (type === "column") {
+            const newColumnOrder = Array.from(this.state.columnOrder);
+            newColumnOrder.splice(source.index, 1);
+            newColumnOrder.splice(destination.index, 0, draggableId);
+            this.setState({
+                ...this.state,
+                columnOrder: newColumnOrder,
+            });
             return;
         }
 
@@ -103,24 +140,35 @@ export default class App extends React.Component {
                 onDragUpdate={this.onDragUpdate}
                 onDragEnd={this.onDragEnd}
             >
-                <Container>
-                    {this.state.columnOrder.map((columnId, index) => {
-                        const column = this.state.columns[columnId];
-                        const tasks = column.taskIds.map(
-                            (taskId) => this.state.tasks[taskId]
-                        );
-                        const isDropDisabled = index < this.state.homeIndex;
+                <Droppable
+                    droppableId="all-column"
+                    direction="horizontal"
+                    type="column"
+                >
+                    {(provided) => (
+                        <Container
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                        >
+                            {this.state.columnOrder.map((columnId, index) => {
+                                const column = this.state.columns[columnId];
+                                const isDropDisabled =
+                                    index < this.state.homeIndex;
 
-                        return (
-                            <Column
-                                key={column.id}
-                                column={column}
-                                tasks={tasks}
-                                isDropDisabled={isDropDisabled}
-                            />
-                        );
-                    })}
-                </Container>
+                                return (
+                                    <InnerList
+                                        key={column.id}
+                                        column={column}
+                                        taskMap={this.state.tasks}
+                                        isDropDisabled={isDropDisabled}
+                                        index={index}
+                                    />
+                                );
+                            })}
+                            {provided.placeholder}
+                        </Container>
+                    )}
+                </Droppable>
             </DragDropContext>
         );
     }
